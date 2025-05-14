@@ -1,78 +1,63 @@
 import { Request, Response } from 'express';
 import { Knex } from 'knex';
 import { blandAIService } from '../services/BlandAIService';
-import { Candidate, Question, InterviewSession, CallAttempt } from '../types/interview';
+import { Candidate, InterviewSession, ICallAttempt, IQuestion, IBlandAIPostCallResponse } from '../types/interview';
 import { logger } from '../utils/logger';
+import { db } from '..';
+import {questions, blandAIPostCallResponse} from "../dummyData";
 
-export const createInterviewController = (db: Knex) => {
-    const createInterviewSession = async (candidateId: number): Promise<InterviewSession> => {
-        const [session] = await db<InterviewSession>('interview_sessions')
-            .insert({
-                candidate_id: candidateId,
-                status: 'scheduled',
-                scheduled_time: new Date(),
-                retry_count: 0,
-                max_retries: 3
-            })
-            .returning('*');
-
-        return session;
-    };
 
     const initiateCallForCandidate = async (
         candidate: Candidate,
-        questions: Question[],
-        sessionId: number
+        questions: IQuestion[],
     ): Promise<void> => {
+        const trx = await db.transaction();
         try {
-            // Create call attempt record
-            const [callAttempt] = await db<CallAttempt>('call_attempts')
-                .insert({
-                    interview_session_id: sessionId,
-                    attempt_number: 1,
-                    status: 'initiated',
-                    started_at: new Date()
-                })
-                .returning('*');
+            const [callAttempt] = await trx<ICallAttempt>('call_attempts')
+            .insert({
+                status: 'initiated',
+                candidateId: candidate.id
+            })
+            .returning('*');
+            console.log("🚀 ~ callAttempt:", callAttempt)
 
-            // Initiate call through Bland.ai
             const callResponse = await blandAIService.initiateCall(
-                candidate.phone_number,
-                questions
+                candidate.phoneNumber,
+                {
+                    companyName: candidate.company,
+                    questions: questions,
+                    name: candidate.name
+                }
             );
+            console.log("🚀 ~ callResponse:", callResponse)
 
-            // Update call attempt with Bland.ai call ID
-            await db<CallAttempt>('call_attempts')
-                .where('id', callAttempt.id)
-                .update({
-                    call_id: callResponse.call_id,
-                    status: 'in_progress'
-                });
+            const updatedCallId = await trx<ICallAttempt>('call_attempts')
+            .where('id', callAttempt.id)
+            .update({
+                callId: callResponse.call_id,
+                status: 'in_progress'
+            }).returning("*");
+
+            console.log("🚀 ~ updatedCallId:", updatedCallId)
+            await trx.commit()
         } catch (error) {
+            await trx.rollback();
             logger.error(`Error initiating call for candidate ${candidate.id}:`, error);
             throw error;
         }
     };
 
-    const scheduleInterviews = async (req: Request, res: Response): Promise<void> => {
+    const callCandidates = async (req: Request, res: Response): Promise<void> => {
         try {
             const { candidateIds } = req.body;
 
-            // Fetch candidates and their phone numbers
             const candidates = await db<Candidate>('candidates')
-                .whereIn('id', candidateIds)
-                .select('*');
+            .whereIn('id', candidateIds)
+            .select('*');
+            console.log("🚀 ~ callCandidates ~ candidates:", candidates)
 
-            // Fetch active questions
-            const questions = await db<Question>('questions')
-                .where('is_active', true)
-                .orderBy('order_index')
-                .select('*');
-
-            // Create interview sessions and initiate calls
             for (const candidate of candidates) {
-                const interviewSession = await createInterviewSession(candidate.id);
-                await initiateCallForCandidate(candidate, questions, interviewSession.id);
+                await initiateCallForCandidate(candidate, questions);
             }
 
             res.status(200).json({ message: 'Interviews scheduled successfully' });
@@ -84,7 +69,7 @@ export const createInterviewController = (db: Knex) => {
 
     const handleCallWebhook = async (req: Request, res: Response): Promise<void> => {
         try {
-            const webhookData = req.body;
+            const webhookData: IBlandAIPostCallResponse = blandAIPostCallResponse;
             await blandAIService.handleWebhook(webhookData);
             res.status(200).json({ message: 'Webhook processed successfully' });
         } catch (error) {
@@ -114,9 +99,9 @@ export const createInterviewController = (db: Knex) => {
         }
     };
 
-    return {
-        scheduleInterviews,
+
+export {
+        callCandidates,
         handleCallWebhook,
         getInterviewResults
-    };
-}; 
+};
