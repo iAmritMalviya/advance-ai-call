@@ -1,22 +1,22 @@
-{
-  "candidates" : [
+export const candidates = [
     {
       "id": 1,
-      "name": "Alice Johnson",
-      "phoneNumber": "+918107711622"
+      "name": "Bhargav",
+      "phoneNumber": "+17042227592"
     },
-    {
-      "id": 2,
-      "name": "Bob Singh",
-      "phoneNumber": "+917742191622"
-    },
-    {
-      "id": 3,
-      "name": "Charlie Patel",
-      "phoneNumber": "+917568525429"
-    }
-  ],
-  "questions": [
+    // {
+    //   "id": 2,
+    //   "name": "Bob Singh",
+    //   "phoneNumber": "+917742191622"
+    // },
+    // {
+    //   "id": 3,
+    //   "name": "Charlie Patel",
+    //   "phoneNumber": "+917568525429"
+    // } expected and actual -> get match based on that 
+  ]
+
+export const questions = [
     {
       "id": 1,
       "question_text": "Can you briefly introduce yourself and your background?"
@@ -58,4 +58,3 @@
       "question_text": "Do you have any upcoming commitments that may affect your availability?"
     }
   ]
-}
