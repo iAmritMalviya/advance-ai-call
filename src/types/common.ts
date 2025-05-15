@@ -18,10 +18,10 @@ export interface InterviewSession {
     created_at: Date;
     updated_at: Date;
 }
-
+export type CallStatus = 'initiated' | 'in_progress' | 'completed' | 'failed';
 export interface ICallAttempt {
     id: number;
-    status: 'initiated' | 'in_progress' | 'completed' | 'failed';
+    status: CallStatus,
     callId?: string;
     candidateId: number,
     retryCount?: number,
@@ -176,3 +176,51 @@ export interface IBlandAIPostCallResponse {
       };
     };
   }
+
+
+export interface IBlandAICallResponseEvaluation {
+    answersEvaluation: IAnswersEvaluation[]; // if needed
+    emotionalAnalysis: EmotionalAnalysis;
+    totalMatchScore: number; // Out of 100
+    summary: IEvaluationSummary;
+    notes?: string
+  }
+  
+  // in case if needed
+  interface IAnswersEvaluation {
+    question: string;
+    matchScore: number; // Out of 10
+    missedPoints: string[];
+    wellAnsweredPoints: string[];
+  }
+
+export interface EmotionalAnalysis {
+    confidence: 'Low' | 'Moderate' | 'High';
+    tone: 'Negative' | 'Neutral' | 'Positive';
+    engagement: 'Low' | 'Moderate' | 'High';
+    notes?: string;
+  }
+
+  
+export interface IEvaluationSummary {
+    strengths: string[];
+    weaknesses: string[];
+    finalDecision: 'Strong Fit' | 'Moderate Fit' | 'Weak Fit';
+    reason: string;
+}
+
+export interface IAiCallEvaluations extends EmotionalAnalysis {
+  id: string;
+  callAttemptId: number,
+  totalMatchScore: number;           // out of 100
+  finalDecision: 'Strong Fit' | 'Moderate Fit' | 'Weak Fit';
+  concatenatedTranscript: string,
+  summaryReason: string;
+  strengths: string[];               // text[]
+  weaknesses: string[];              // text[]
+  createdAt: string;                 // ISO timestamp
+  confidence: 'Low' | 'Moderate' | 'High';
+  tone: 'Negative' | 'Neutral' | 'Positive';
+  engagement: 'Low' | 'Moderate' | 'High';
+  notes?: string;
+}

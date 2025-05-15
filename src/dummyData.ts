@@ -1,4 +1,4 @@
-import { IQuestion } from "./types/interview"
+import { IQuestion } from "./types/common"
 
 export const candidates = [
   {
@@ -117,8 +117,8 @@ export const blandAIPostCallResponse = {
       accept: "*/*",
     },
     body: {
-      call_id: "bcfaee67-a117-4f8a-9df1-b5a24fefd748",
-      c_id: "bcfaee67-a117-4f8a-9df1-b5a24fefd748",
+      call_id: "2794a2b3-84b3-4941-b229-80eb206cb8b6",
+      c_id: "2794a2b3-84b3-4941-b229-80eb206cb8b6",
       call_length: 0.933333333333333,
       batch_id: null,
       to: "+918107711622",
@@ -136,7 +136,7 @@ export const blandAIPostCallResponse = {
         short_to: "8107711622",
         from: "+19787758468",
         to: "+918107711622",
-        call_id: "bcfaee67-a117-4f8a-9df1-b5a24fefd748",
+        call_id: "2794a2b3-84b3-4941-b229-80eb206cb8b6",
         phone_number: "+918107711622",
         country: "IN",
         state: "Rajasthan",
@@ -156,7 +156,7 @@ export const blandAIPostCallResponse = {
       answered_by: null,
       record: true,
       recording_url:
-        "https://server.aws.dc5.bland.ai/v1/recordings/bcfaee67-a117-4f8a-9df1-b5a24fefd748:aebedaa4-dafe-43e3-8710-f8837646d74d",
+        "https://server.aws.dc5.bland.ai/v1/recordings/2794a2b3-84b3-4941-b229-80eb206cb8b6:aebedaa4-dafe-43e3-8710-f8837646d74d",
       metadata: {
         questions: [
           {

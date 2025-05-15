@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { Knex } from 'knex';
-import { blandAIService } from '../services/BlandAIService';
-import { Candidate, InterviewSession, ICallAttempt, IQuestion, IBlandAIPostCallResponse } from '../types/interview';
+import * as blandAIService from '../services/BlandAIService';
+import { Candidate, InterviewSession, ICallAttempt, IQuestion, IBlandAIPostCallResponse } from '../types/common';
 import { logger } from '../utils/logger';
 import { db } from '..';
 import {questions, blandAIPostCallResponse} from "../dummyData";
@@ -50,6 +50,7 @@ import {questions, blandAIPostCallResponse} from "../dummyData";
     const callCandidates = async (req: Request, res: Response): Promise<void> => {
         try {
             const { candidateIds } = req.body;
+            console.log("🚀 ~ callCandidates ~ candidateIds:", candidateIds)
 
             const candidates = await db<Candidate>('candidates')
             .whereIn('id', candidateIds)

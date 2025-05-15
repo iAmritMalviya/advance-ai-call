@@ -1,103 +1,39 @@
-import OpenAI from 'openai';
-import { IQuestion } from '../types/interview';
-import { logger } from '../utils/logger';
+import OpenAI from "openai";
+import { IBlandAICallResponseEvaluation, IQuestion } from "../types/common";
+import { logger } from "../utils/logger";
+import { blandAIAnalyzePromptGenerator } from "../utils/common";
 
 const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
-interface IExpectedAnswer {
-    questionId: number;
-    questionText: string;
-    expectedAnswer: string;
-    keyPoints: string[];
-}
-
-interface IResponseAnalysis {
-    questionId: number;
-    questionText: string;
-    candidateResponse: string;
-    expectedAnswer: string;
-    matchScore: number;
-    analysis: string;
-    keyPointsCovered: string[];
-    keyPointsMissed: string[];
-}
-
-export const generateExpectedAnswers = async (questions: IQuestion[]): Promise<IExpectedAnswer[]> => {
-    try {
-        const prompt = `Given the following interview questions, generate expected answers and key points that would indicate a strong candidate. Format the response as a JSON array of objects with the following structure:
-        {
-            "questionId": number,
-            "questionText": string,
-            "expectedAnswer": string,
-            "keyPoints": string[]
-        }
-
-        Questions:
-        ${questions.map(q => `${q.id}. ${q.questionText}`).join('\n')}
-
-        For each question:
-        1. Provide a comprehensive expected answer
-        2. List 3-5 key points that should be covered
-        3. Focus on professional, well-structured responses
-        4. Consider industry best practices`;
-
-        const completion = await openai.chat.completions.create({
-            messages: [{ role: "user", content: prompt }],
-            model: "gpt-4-turbo-preview",
-            response_format: { type: "json_object" }
-        });
-
-        const response = JSON.parse(completion.choices[0].message.content as string);
-        return response.expectedAnswers;
-    } catch (error) {
-        logger.error('Error generating expected answers:', error);
-        throw error;
-    }
-};
 
 export const analyzeResponse = async (
-    candidateResponse: string,
-    expectedAnswer: IExpectedAnswer
-): Promise<IResponseAnalysis> => {
+    concatenatedTranscript: string,
+    questions: IQuestion[]
+  ): Promise<IBlandAICallResponseEvaluation> => {
     try {
-        const prompt = `Analyze the candidate's response against the expected answer and key points. Format the response as a JSON object with the following structure:
-        {
-            "questionId": number,
-            "questionText": string,
-            "candidateResponse": string,
-            "expectedAnswer": string,
-            "matchScore": number,
-            "analysis": string,
-            "keyPointsCovered": string[],
-            "keyPointsMissed": string[]
+      const prompt = blandAIAnalyzePromptGenerator(concatenatedTranscript, questions);
+  
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [{ role: "user", content: prompt }],
+        response_format: { type: "json_object" },
+      });
+  
+      const responseContent = completion.choices?.[0]?.message?.content;
+      
+      if (!responseContent) {
+        throw new Error("No content returned from OpenAI.");
+      }
+  
+      const data =  JSON.parse(responseContent);
+      console.log("🚀 ~ data:", data)
+      return data;
+    } catch (error: any) {
+        if (error.code === 'model_not_found') {
+            logger.error("Invalid model or missing access. Check model name or your OpenAI account.");
         }
-
-        Candidate Response: ${candidateResponse}
-        Expected Answer: ${expectedAnswer.expectedAnswer}
-        Key Points: ${expectedAnswer.keyPoints.join(', ')}
-
-        Provide:
-        1. A match score (0-100)
-        2. Detailed analysis of the response
-        3. List of key points covered
-        4. List of key points missed`;
-
-        const completion = await openai.chat.completions.create({
-            messages: [{ role: "user", content: prompt }],
-            model: "gpt-4-turbo-preview",
-            response_format: { type: "json_object" }
-        });
-
-        return JSON.parse(completion.choices[0].message.content as string);
-    } catch (error) {
-        logger.error('Error analyzing response:', error);
-        throw error;
+      throw error;
     }
-};
-
-export const calculateOverallMatchScore = (analyses: IResponseAnalysis[]): number => {
-    const totalScore = analyses.reduce((sum, analysis) => sum + analysis.matchScore, 0);
-    return Math.round(totalScore / analyses.length);
-}; 
+  };
