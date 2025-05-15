@@ -1,6 +1,6 @@
 import axios from 'axios';
 import Bull from 'bull';
-import { IBlandAIPreCallResponse, EmotionAnalysis, ICallScript, IQuestion, IBlandAIPostCallResponse, ICallAttempt, CallStatus, IAiCallEvaluations } from '../types/common';
+import { IBlandAIPreCallResponse, EmotionAnalysis, ICallScript, IQuestion, IBlandAIPostCallResponse, ICallAttempt, CallStatus, IAiCallEvaluations, Candidate } from '../types/common';
 import { logger } from '../utils/logger';
 import { db } from '..';
 import { analyzeResponse } from './openAIService';
@@ -186,6 +186,49 @@ export const handleWebhook = async (data: IBlandAIPostCallResponse): Promise<voi
             throw error;
         }
 };
+
+
+
+export const initiateCallForCandidate = async (
+    candidate: Candidate,
+    questions: IQuestion[],
+): Promise<void> => {
+    const trx = await db.transaction();
+    try {
+        const [callAttempt] = await trx<ICallAttempt>('call_attempts')
+        .insert({
+            status: 'initiated',
+            candidateId: candidate.id
+        })
+        .returning('*');
+        console.log("🚀 ~ callAttempt:", callAttempt)
+
+        const callResponse = await initiateCall(
+            candidate.phoneNumber,
+            {
+                companyName: candidate.company,
+                questions: questions,
+                name: candidate.name
+            }
+        );
+        console.log("🚀 ~ callResponse:", callResponse)
+
+        const updatedCallId = await trx<ICallAttempt>('call_attempts')
+        .where('id', callAttempt.id)
+        .update({
+            callId: callResponse.call_id,
+            status: 'in_progress'
+        }).returning("*");
+
+        console.log("🚀 ~ updatedCallId:", updatedCallId)
+        await trx.commit()
+    } catch (error) {
+        await trx.rollback();
+        logger.error(`Error initiating call for candidate ${candidate.id}:`, error);
+        throw error;
+    }
+};
+
 
     // Initialize queue processing
     // setupQueueProcessing();

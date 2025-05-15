@@ -5,49 +5,9 @@ import { Candidate, InterviewSession, ICallAttempt, IQuestion, IBlandAIPostCallR
 import { logger } from '../utils/logger';
 import { db } from '..';
 import {questions, blandAIPostCallResponse} from "../dummyData";
+import { initiateCallForCandidate } from '../services/BlandAIService';
 
-
-    const initiateCallForCandidate = async (
-        candidate: Candidate,
-        questions: IQuestion[],
-    ): Promise<void> => {
-        const trx = await db.transaction();
-        try {
-            const [callAttempt] = await trx<ICallAttempt>('call_attempts')
-            .insert({
-                status: 'initiated',
-                candidateId: candidate.id
-            })
-            .returning('*');
-            console.log("🚀 ~ callAttempt:", callAttempt)
-
-            const callResponse = await blandAIService.initiateCall(
-                candidate.phoneNumber,
-                {
-                    companyName: candidate.company,
-                    questions: questions,
-                    name: candidate.name
-                }
-            );
-            console.log("🚀 ~ callResponse:", callResponse)
-
-            const updatedCallId = await trx<ICallAttempt>('call_attempts')
-            .where('id', callAttempt.id)
-            .update({
-                callId: callResponse.call_id,
-                status: 'in_progress'
-            }).returning("*");
-
-            console.log("🚀 ~ updatedCallId:", updatedCallId)
-            await trx.commit()
-        } catch (error) {
-            await trx.rollback();
-            logger.error(`Error initiating call for candidate ${candidate.id}:`, error);
-            throw error;
-        }
-    };
-
-    const callCandidates = async (req: Request, res: Response): Promise<void> => {
+export const callCandidates = async (req: Request, res: Response): Promise<void> => {
         try {
             const { candidateIds } = req.body;
             console.log("🚀 ~ callCandidates ~ candidateIds:", candidateIds)
@@ -66,9 +26,9 @@ import {questions, blandAIPostCallResponse} from "../dummyData";
             logger.error('Error scheduling interviews:', error);
             res.status(500).json({ error: 'Failed to schedule interviews' });
         }
-    };
+};
 
-    const handleCallWebhook = async (req: Request, res: Response): Promise<void> => {
+export const handleCallWebhook = async (req: Request, res: Response): Promise<void> => {
         try {
             const webhookData: IBlandAIPostCallResponse = blandAIPostCallResponse;
             await blandAIService.handleWebhook(webhookData);
@@ -77,32 +37,21 @@ import {questions, blandAIPostCallResponse} from "../dummyData";
             logger.error('Error processing webhook:', error);
             res.status(500).json({ error: 'Failed to process webhook' });
         }
-    };
+};
 
-    const getInterviewResults = async (req: Request, res: Response): Promise<void> => {
+export const getInterviewResults = async (req: Request, res: Response): Promise<void> => {
         try {
-            const { sessionId } = req.params;
+            const { roundId } = req.params;
 
-            const results = await db('responses')
-                .join('call_attempts', 'responses.call_attempt_id', 'call_attempts.id')
-                .join('questions', 'responses.question_id', 'questions.id')
-                .where('call_attempts.interview_session_id', sessionId)
-                .select(
-                    'questions.question_text',
-                    'responses.transcribed_answer',
-                    'responses.emotion_analysis'
-                );
+            // get api based on the round id, it should fetch data from ai call evolution table
 
-            res.status(200).json(results);
+            res.status(200).json();
         } catch (error) {
             logger.error('Error fetching interview results:', error);
             res.status(500).json({ error: 'Failed to fetch interview results' });
         }
-    };
-
-
-export {
-        callCandidates,
-        handleCallWebhook,
-        getInterviewResults
 };
+
+export const testQueue = async (req: Request, res: Response): Promise<void> => {
+    
+}
