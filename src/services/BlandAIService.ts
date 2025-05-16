@@ -126,7 +126,7 @@ export const initiateCall = async (phoneNumber: string, callScript: ICallScript)
         }),
         record: true,
         webhook_events: ["dynamic_data"],
-        webhook: process.env.WEBHOOK_URL,
+        webhook: "https://8bcc-27-0-217-55.ngrok-free.app/api/webhook",
         metadata: {
             questions
         }
@@ -209,16 +209,18 @@ const handleFailedCall = async (callId: string): Promise<void> => {
 };
 
 export const handleWebhook = async (data: IBlandAIPostCallResponse): Promise<void> => {
-    const callId = data.event.body.call_id;
-    const callStartedAt = data.event.body.started_at;
-    const callEndedAt = data.event.body.end_at;
-    const status = data.event.body.status as CallStatus;
-    const metaData = data.event.body.metadata as unknown as IQuestion[];
-    const concatenatedTranscript = data.event.body.concatenated_transcript;
+    console.log("🚀 ~ handleWebhook ~ data:", data)
+    
+    const callId = data.call_id;
+    const callStartedAt = data.started_at;
+    const callEndedAt = data.end_at;
+    const status = data.status as CallStatus;
+    const metaData = data.metadata as unknown as IQuestion[];
+    const concatenatedTranscript = data.concatenated_transcript;
 
     const trx = await db.transaction();
     try {
-        logger.info('Processing webhook', { callId });
+        logger.info(`Processing webhook, ${ callId }`);
 
         await trx<ICallAttempt>('call_attempts').update({
             startedAt: new Date(callStartedAt),
@@ -317,12 +319,12 @@ export const initiateCallForCandidate = async (
     }
 };
 
-export const testQueue = async (blandAIPostCallResponse: IBlandAIPostCallResponse): Promise<Bull.Job> => {
+export const postCallEvaluationQueue = async (blandAIPostCallResponse: IBlandAIPostCallResponse): Promise<Bull.Job> => {
     try {
         logger.info('Adding test job to evaluation queue');
-        const testJob = await callEvaluationQueue.add(blandAIPostCallResponse);
-        logger.info('Test job added successfully', { jobId: testJob.id });
-        return testJob;
+        const queue = await callEvaluationQueue.add(blandAIPostCallResponse);
+        logger.info('Test job added successfully', { jobId: queue.id });
+        return queue;
     } catch (error) {
         logger.error('Error testing queue:', error);
         throw error;

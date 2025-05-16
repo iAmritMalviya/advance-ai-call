@@ -8,6 +8,6 @@ callingRouter.post('/calls', callCandidates);
 
 callingRouter.post('/webhook', handleCallWebhook);
 
-callingRouter.get('/results/:roundId',getInterviewResults);
+callingRouter.get('/results',getInterviewResults);
 
 callingRouter.post('/test', testQueueController);

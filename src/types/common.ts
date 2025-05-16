@@ -74,107 +74,74 @@ export interface ICallScript {
 }
 
 export interface IBlandAIPostCallResponse {
-    context: {
-      id: string;
-      ts: string;
-      pipeline_id: string | null;
-      workflow_id: string;
-      deployment_id: string;
-      source_type: string;
-      verified: boolean;
-      hops: any; // or define type if known
-      test: boolean;
-      replay: boolean;
-      owner_id: string;
-      platform_version: string;
-      workflow_name: string;
-      resume: any; // or define type if known
-      emitter_id: string;
-      external_user_id: string | null;
-      external_user_environment: string | null;
-      trace_id: string;
-      project_id: string;
-    };
-    event: {
-      method: string;
-      path: string;
-      query: Record<string, any>;
-      client_ip: string;
-      url: string;
-      headers: {
-        [key: string]: string;
-      };
-      body: {
-        call_id: string;
-        c_id: string;
-        call_length: number;
-        batch_id: string | null;
-        to: string;
+      call_id: string;
+      c_id: string;
+      call_length: number;
+      batch_id: string | null;
+      to: string;
+      from: string;
+      completed: boolean;
+      created_at: string;
+      inbound: boolean;
+      queue_status: string;
+      max_duration: number;
+      error_message: string | null;
+      variables: {
+        now: string;
+        now_utc: string;
+        short_from: string;
+        short_to: string;
         from: string;
-        completed: boolean;
-        created_at: string;
-        inbound: boolean;
-        queue_status: string;
-        max_duration: number;
-        error_message: string | null;
-        variables: {
-          now: string;
-          now_utc: string;
-          short_from: string;
-          short_to: string;
-          from: string;
-          to: string;
-          call_id: string;
-          phone_number: string;
-          country: string;
-          state: string;
-          language: string;
-          metadata: {
-            questions: Array<{
-              id: number;
-              questionText: string;
-              expectation: string;
-            }>;
-          };
-          timestamp: string;
-          timezone: string;
-        };
-        answered_by: string | null;
-        record: boolean;
-        recording_url: string;
+        to: string;
+        call_id: string;
+        phone_number: string;
+        country: string;
+        state: string;
+        language: string;
         metadata: {
           questions: Array<{
             id: number;
-            expectation: string;
             questionText: string;
+            expectation: string;
           }>;
         };
-        summary: string;
-        price: number;
-        started_at: string;
-        local_dialing: boolean;
-        call_ended_by: string;
-        pathway_logs: any;
-        analysis_schema: any;
-        analysis: any;
-        transferred_to: any;
-        pathway_tags: any[];
-        recording_expiration: any;
-        status: string;
-        pathway_id: any;
-        warm_transfer_calls: any;
-        concatenated_transcript: string;
-        transcripts: Array<{
-          id: number;
-          user: string;
-          text: string;
-          created_at: string;
-        }>;
-        corrected_duration: string;
-        end_at: string;
-        disposition_tag: string;
+        timestamp: string;
+        timezone: string;
       };
-    };
+      answered_by: string | null;
+      record: boolean;
+      recording_url: string;
+      metadata: {
+        questions: Array<{
+          id: number;
+          expectation: string;
+          questionText: string;
+        }>;
+      };
+      summary: string;
+      price: number;
+      started_at: string;
+      local_dialing: boolean;
+      call_ended_by: string;
+      pathway_logs: any;
+      analysis_schema: any;
+      analysis: any;
+      transferred_to: any;
+      pathway_tags: any[];
+      recording_expiration: any;
+      status: string;
+      pathway_id: any;
+      warm_transfer_calls: any;
+      concatenated_transcript: string;
+      transcripts: Array<{
+        id: number;
+        user: string;
+        text: string;
+        created_at: string;
+      }>;
+      corrected_duration: string;
+      end_at: string;
+      disposition_tag: string;
   }
 
 

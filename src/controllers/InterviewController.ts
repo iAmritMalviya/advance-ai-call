@@ -3,7 +3,7 @@ import { Candidate, InterviewRound, ICallAttempt, IQuestion, IBlandAIPostCallRes
 import { logger } from '../utils/logger';
 import { db } from '..';
 import { questions, blandAIPostCallResponse } from "../dummyData";
-import { initiateCallForCandidate, setupQueueProcessing, testQueue } from '../services/BlandAIService';
+import { initiateCallForCandidate, setupQueueProcessing, postCallEvaluationQueue } from '../services/BlandAIService';
 import { findCandidatesByIds } from '../services/DatabaseService';
 import { asyncHandler } from '../middleware/errorHandler';
 import { z } from 'zod';
@@ -55,23 +55,24 @@ export const handleCallWebhook = asyncHandler(async (req: Request, res: Response
     const webhookData: IBlandAIPostCallResponse = req.body;
     
     logger.info('Received webhook', { 
-        callId: webhookData.event.body.call_id 
+        // callId: webhookData.event.body.call_id 
+        body: req.body
     });
 
-    await testQueue(webhookData);
+    await postCallEvaluationQueue(webhookData);
     
     res.status(200).json({ message: 'Webhook processed successfully' });
 });
 
 export const getInterviewResults = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const { roundId } = getInterviewResultsSchema.parse(req.params);
+    // const { roundId } = getInterviewResultsSchema.parse(req.params);
 
-    logger.info('Fetching interview results', { roundId });
+    logger.info('Fetching interview results');
 
     const results = await db('ai_call_evaluations')
         .join('call_attempts', 'ai_call_evaluations.callAttemptId', 'call_attempts.id')
         .join('candidates', 'call_attempts.candidateId', 'candidates.id')
-        .where('call_attempts.roundId', roundId)
+        // .where('call_attempts.roundId', roundId)
         .select([
             'ai_call_evaluations.*',
             'candidates.name as candidateName',
@@ -93,7 +94,7 @@ export const getInterviewResults = asyncHandler(async (req: Request, res: Respon
 
 export const testQueueController = asyncHandler(async (req: Request, res: Response): Promise<void> => {
     logger.info('Testing queue with sample data');
-    const testJob = await testQueue(blandAIPostCallResponse);
+    const testJob = await postCallEvaluationQueue(blandAIPostCallResponse as unknown as IBlandAIPostCallResponse);
     res.status(200).json({ 
         message: 'Test job added to queue successfully',
         jobId: testJob.id 

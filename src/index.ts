@@ -20,11 +20,12 @@ app.use(express.json());
 export const db = knex(knexConfig.development);
 
 app.get('/health', (req, res) => {
-    res.status(200).json({ status: 'ok', timeStamp: new Date() });
+    res.status(200).json({ status: 'Server is healthy', timeStamp: new Date() });
 });
 
 app.use('/api', callingRouter);
-
+// https://d513-27-0-217-55.ngrok-free.app
+// https://eoict3a33ptxtwr.m.pipedream.net
 // Error handling middleware
 app.use(errorHandler);
 
