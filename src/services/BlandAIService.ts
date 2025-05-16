@@ -79,25 +79,25 @@ const callQueue = createCallQueue();
 const callEvaluationQueue = createAiCallEvaluationQueue();
 
 export const setupQueueProcessing = () => {
-    // callQueue.process(MAX_CONCURRENT_CALLS, async (job) => {
-    //     const { candidateId, phoneNumber, questions, company, name } = job.data;
-    //     try {
-    //         logger.info(`Processing call for candidate ${candidateId}`, { jobId: job.id });
-    //         const callResponse = await initiateCall(phoneNumber, { questions, companyName: company, name });
-    //         logger.info(`Call initiated successfully for candidate ${candidateId}`, { 
-    //             jobId: job.id,
-    //             callId: callResponse.call_id 
-    //         });
-    //         return callResponse;
-    //     } catch (error) {
-    //         logger.error(`Call failed for candidate ${candidateId}:`, { 
-    //             error,
-    //             jobId: job.id,
-    //             attempt: job.attemptsMade
-    //         });
-    //         throw error;
-    //     }
-    // });
+    callQueue.process(MAX_CONCURRENT_CALLS, async (job) => {
+        const { candidateId, phoneNumber, questions, company, name } = job.data;
+        try {
+            logger.info(`Processing call for candidate ${candidateId}`, { jobId: job.id });
+            const callResponse = await initiateCall(phoneNumber, { questions, companyName: company, name });
+            logger.info(`Call initiated successfully for candidate ${candidateId}`, { 
+                jobId: job.id,
+                callId: callResponse.call_id 
+            });
+            return callResponse;
+        } catch (error) {
+            logger.error(`Call failed for candidate ${candidateId}:`, { 
+                error,
+                jobId: job.id,
+                attempt: job.attemptsMade
+            });
+            throw error;
+        }
+    });
 
     callEvaluationQueue.process(MAX_CONCURRENT_CALLS, async (job) => {
         try {
@@ -323,6 +323,18 @@ export const postCallEvaluationQueue = async (blandAIPostCallResponse: IBlandAIP
     try {
         logger.info('Adding test job to evaluation queue');
         const queue = await callEvaluationQueue.add(blandAIPostCallResponse);
+        logger.info('Test job added successfully', { jobId: queue.id });
+        return queue;
+    } catch (error) {
+        logger.error('Error testing queue:', error);
+        throw error;
+    }
+};
+
+export const callCandidatesQueue = async (blandAIPostCallResponse: IBlandAIPostCallResponse): Promise<Bull.Job> => {
+    try {
+        logger.info('Adding candidates to queue');
+        const queue = await .add(blandAIPostCallResponse);
         logger.info('Test job added successfully', { jobId: queue.id });
         return queue;
     } catch (error) {
