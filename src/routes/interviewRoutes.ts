@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { Knex } from 'knex';
-import { callCandidates, getInterviewResults, handleCallWebhook, testQueue } from '../controllers/InterviewController';
+import {  getInterviewResults, handleCallWebhook, testQueueController, callCandidates } from '../controllers/InterviewController';
 
 export const callingRouter = Router();
 
@@ -10,4 +10,4 @@ callingRouter.post('/webhook', handleCallWebhook);
 
 callingRouter.get('/results/:sessionId',getInterviewResults);
 
-callingRouter.post('/test', testQueue);
+callingRouter.post('/test', testQueueController);

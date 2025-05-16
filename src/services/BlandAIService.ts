@@ -11,82 +11,159 @@ import { v4 as uuidv4 } from 'uuid';
 const MAX_CONCURRENT_CALLS = 5;
 const MAX_RETRIES = 3;
 const RETRY_DELAY_BASE = 60 * 60 * 1000; // 1 hour in milliseconds
-
+const QUEUE_NAMES = {
+    CALLS: 'bland-ai-calls',
+    EVALUATION: 'ai-call-evaluation'
+} as const;
 
 const createCallQueue = () => {
-    return new Bull('bland-ai-calls', {
+    if (!process.env.REDIS_HOST || !process.env.REDIS_PORT) {
+        throw new Error('Redis configuration is missing');
+    }
+
+    return new Bull(QUEUE_NAMES.CALLS, {
         redis: {
             host: process.env.REDIS_HOST,
-            port: parseInt(process.env.REDIS_PORT || '6379'),
+            port: parseInt(process.env.REDIS_PORT),
             password: process.env.REDIS_PASSWORD,
             username: process.env.REDIS_USERNAME
+        },
+        defaultJobOptions: {
+            attempts: MAX_RETRIES,
+            backoff: {
+                type: 'exponential',
+                delay: RETRY_DELAY_BASE
+            },
+            removeOnComplete: true,
+            removeOnFail: false
         }
     });
 };
 
+const createAiCallEvaluationQueue = () => {
+    if (!process.env.REDIS_HOST || !process.env.REDIS_PORT) {
+        throw new Error('Redis configuration is missing');
+    }
+
+    return new Bull(QUEUE_NAMES.EVALUATION, {
+        redis: {
+            host: process.env.REDIS_HOST,
+            port: parseInt(process.env.REDIS_PORT),
+            password: process.env.REDIS_PASSWORD,
+            username: process.env.REDIS_USERNAME
+        },
+        defaultJobOptions: {
+            attempts: MAX_RETRIES,
+            backoff: {
+                type: 'exponential',
+                delay: RETRY_DELAY_BASE
+            },
+            removeOnComplete: true,
+            removeOnFail: false
+        }
+    });
+};
 
 const calculateRetryDelay = (attemptNumber: number): number => {
     return RETRY_DELAY_BASE * Math.pow(2, attemptNumber - 1);
 };
 
-    const blandAiApiKey = process.env.BLAND_AI_API_KEY || '';
-    const blandAiBaseUrl = process.env.BLAND_AI_BASE_URL || '';
-    console.log("🚀 ~ createBlandAIService ~ blandAiBaseUrl:", blandAiBaseUrl, blandAiApiKey)
-    const callQueue = createCallQueue();
+const blandAiApiKey = process.env.BLAND_AI_API_KEY || '';
+const blandAiBaseUrl = process.env.BLAND_AI_BASE_URL || '';
+
+if (!blandAiApiKey || !blandAiBaseUrl) {
+    throw new Error('Bland AI configuration is missing');
+}
+
+const callQueue = createCallQueue();
+const callEvaluationQueue = createAiCallEvaluationQueue();
 
 export const setupQueueProcessing = () => {
-        callQueue.process(MAX_CONCURRENT_CALLS, async (job) => {
-            console.log("🚀 ~ callQueue.process ~ job:", job)
-            const { candidateId, phoneNumber, questions, company, name } = job.data;
-            try {
-                const callResponse = await initiateCall(phoneNumber,{ questions, companyName: company, name});
-                return callResponse;
-            } catch (error) {
-                logger.error(`Call failed for candidate ${candidateId}:`, error);
-                throw error;
-            }
-        });
+    // callQueue.process(MAX_CONCURRENT_CALLS, async (job) => {
+    //     const { candidateId, phoneNumber, questions, company, name } = job.data;
+    //     try {
+    //         logger.info(`Processing call for candidate ${candidateId}`, { jobId: job.id });
+    //         const callResponse = await initiateCall(phoneNumber, { questions, companyName: company, name });
+    //         logger.info(`Call initiated successfully for candidate ${candidateId}`, { 
+    //             jobId: job.id,
+    //             callId: callResponse.call_id 
+    //         });
+    //         return callResponse;
+    //     } catch (error) {
+    //         logger.error(`Call failed for candidate ${candidateId}:`, { 
+    //             error,
+    //             jobId: job.id,
+    //             attempt: job.attemptsMade
+    //         });
+    //         throw error;
+    //     }
+    // });
+
+    callEvaluationQueue.process(MAX_CONCURRENT_CALLS, async (job) => {
+        try {
+            logger.info('Processing call evaluation', { jobId: job.id });
+            await handleWebhook(job.data);
+            logger.info('Call evaluation completed successfully', { jobId: job.id });
+        } catch (error) {
+            logger.error('Call evaluation failed:', { 
+                error,
+                jobId: job.id,
+                attempt: job.attemptsMade
+            });
+            throw error;
+        }
+    });
 };
 
 export const initiateCall = async (phoneNumber: string, callScript: ICallScript): Promise<IBlandAIPreCallResponse> => {
-        const {questions, name, companyName} = callScript;
-        const callData = {
-            phone_number: phoneNumber,
-            task: generateCallScript({
-                questions,
-                companyName,
-                name
-            }),
-            record:true,
-            "webhook_events": [
-                "dynamic_data"
-            ],
-            webhook: "https://eoict3a33ptxtwr.m.pipedream.net",
-            metadata: {
-                questions
-            }
-        };
-        console.log("🚀 ~ initiateCall ~ callData:", callData)
-
-        try {
-            const response = await axios.post<IBlandAIPreCallResponse>(
-                `${blandAiBaseUrl}/calls`,
-                callData,
-                {
-                    headers: {
-                        'Authorization': `Bearer ${blandAiApiKey}`,
-                        'Content-Type': 'application/json'
-                    }
-                }
-            );
-            console.log("🚀 ~ initiateCall ~ response:", response)
-
-            return response.data;
-            return " " as unknown as IBlandAIPreCallResponse
-        } catch (error) {
-            logger.error('Error initiating call:', error);
-            throw error;
+    const { questions, name, companyName } = callScript;
+    const callData = {
+        phone_number: phoneNumber,
+        task: generateCallScript({
+            questions,
+            companyName,
+            name
+        }),
+        record: true,
+        webhook_events: ["dynamic_data"],
+        webhook: process.env.WEBHOOK_URL,
+        metadata: {
+            questions
         }
+    };
+
+    try {
+        logger.info('Initiating call', { 
+            phoneNumber,
+            companyName,
+            candidateName: name
+        });
+
+        const response = await axios.post<IBlandAIPreCallResponse>(
+            `${blandAiBaseUrl}/calls`,
+            callData,
+            {
+                headers: {
+                    'Authorization': `Bearer ${blandAiApiKey}`,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+
+        logger.info('Call initiated successfully', { 
+            callId: response.data.call_id,
+            phoneNumber
+        });
+
+        return response.data;
+    } catch (error) {
+        logger.error('Error initiating call:', { 
+            error,
+            phoneNumber,
+            companyName
+        });
+        throw error;
+    }
 };
 
 export const scheduleRetry = async (
@@ -132,42 +209,42 @@ const handleFailedCall = async (callId: string): Promise<void> => {
 };
 
 export const handleWebhook = async (data: IBlandAIPostCallResponse): Promise<void> => {
-        const callId = data.event.body.call_id;
-        const callStartedAt = data.event.body.started_at;
-        const callEndedAt = data.event.body.end_at;
-        const status = data.event.body.status as CallStatus;
-        const metaData = data.event.body.metadata as unknown as IQuestion[];
-        const concatenatedTranscript = data.event.body.concatenated_transcript;
-        console
-        const trx = await db.transaction();
-        try {
-            // chat gpt and make the response
-            // create score and upload to database
-            // create api to send to the recruiter
-         
-            
-            await trx<ICallAttempt>('call_attempts').update({
-                startedAt: new Date(callStartedAt),
-                endedAt: new Date(callEndedAt),
-                status
-            }).where({
-                callId
-            });
+    const callId = data.event.body.call_id;
+    const callStartedAt = data.event.body.started_at;
+    const callEndedAt = data.event.body.end_at;
+    const status = data.event.body.status as CallStatus;
+    const metaData = data.event.body.metadata as unknown as IQuestion[];
+    const concatenatedTranscript = data.event.body.concatenated_transcript;
 
-            const callAttempt = await trx<ICallAttempt>('call_attempts').select("*").where({
-                callId
-            }).first();
-            
-            // get questions based on the round
-            console.log("🚀 ~ callAttempt ~ callAttempt:", callAttempt);
-            // analyze question with question and answers
-            const chatGPTResponse = await analyzeResponse(concatenatedTranscript, metaData)
-            console.log("🚀 ~ handleWebhook ~ chatGPTResponse:", chatGPTResponse);
-            const {emotionalAnalysis, totalMatchScore, summary, answersEvaluation, notes} = chatGPTResponse;
-            const aiCallEvaluation = await trx<IAiCallEvaluations>('ai_call_evaluations').insert({
+    const trx = await db.transaction();
+    try {
+        logger.info('Processing webhook', { callId });
+
+        await trx<ICallAttempt>('call_attempts').update({
+            startedAt: new Date(callStartedAt),
+            endedAt: new Date(callEndedAt),
+            status
+        }).where({
+            callId
+        });
+
+        const callAttempt = await trx<ICallAttempt>('call_attempts')
+            .select("*")
+            .where({ callId })
+            .first();
+
+        if (!callAttempt) {
+            throw new Error(`Call attempt not found for callId: ${callId}`);
+        }
+
+        const chatGPTResponse = await analyzeResponse(concatenatedTranscript, metaData);
+        const { emotionalAnalysis, totalMatchScore, summary, notes } = chatGPTResponse;
+
+        const aiCallEvaluation = await trx<IAiCallEvaluations>('ai_call_evaluations')
+            .insert({
                 id: uuidv4(),
                 totalMatchScore,
-                callAttemptId: callAttempt?.id,
+                callAttemptId: callAttempt.id,
                 finalDecision: summary.finalDecision,
                 summaryReason: summary.reason,
                 strengths: summary.strengths,
@@ -177,17 +254,21 @@ export const handleWebhook = async (data: IBlandAIPostCallResponse): Promise<voi
                 tone: emotionalAnalysis.tone,
                 engagement: emotionalAnalysis.engagement,
                 notes
-            }).returning("*")
-            console.log("🚀 ~ handleWebhook ~ aiCallEvaluation:", aiCallEvaluation)
-            await trx.commit();
-            return
-        } catch (error) {
-            await trx.rollback()
-            throw error;
-        }
+            })
+            .returning("*");
+
+        logger.info('Webhook processed successfully', { 
+            callId,
+            evaluationId: aiCallEvaluation[0].id
+        });
+
+        await trx.commit();
+    } catch (error) {
+        await trx.rollback();
+        logger.error(`Error processing webhook for call ${callId}:`, error);
+        throw error;
+    }
 };
-
-
 
 export const initiateCallForCandidate = async (
     candidate: Candidate,
@@ -195,13 +276,17 @@ export const initiateCallForCandidate = async (
 ): Promise<void> => {
     const trx = await db.transaction();
     try {
+        logger.info('Initiating call for candidate', { 
+            candidateId: candidate.id,
+            name: candidate.name
+        });
+
         const [callAttempt] = await trx<ICallAttempt>('call_attempts')
-        .insert({
-            status: 'initiated',
-            candidateId: candidate.id
-        })
-        .returning('*');
-        console.log("🚀 ~ callAttempt:", callAttempt)
+            .insert({
+                status: 'initiated',
+                candidateId: candidate.id
+            })
+            .returning('*');
 
         const callResponse = await initiateCall(
             candidate.phoneNumber,
@@ -211,17 +296,20 @@ export const initiateCallForCandidate = async (
                 name: candidate.name
             }
         );
-        console.log("🚀 ~ callResponse:", callResponse)
 
-        const updatedCallId = await trx<ICallAttempt>('call_attempts')
-        .where('id', callAttempt.id)
-        .update({
-            callId: callResponse.call_id,
-            status: 'in_progress'
-        }).returning("*");
+        await trx<ICallAttempt>('call_attempts')
+            .where('id', callAttempt.id)
+            .update({
+                callId: callResponse.call_id,
+                status: 'in_progress'
+            });
 
-        console.log("🚀 ~ updatedCallId:", updatedCallId)
-        await trx.commit()
+        logger.info('Call attempt created successfully', { 
+            callAttemptId: callAttempt.id,
+            callId: callResponse.call_id
+        });
+
+        await trx.commit();
     } catch (error) {
         await trx.rollback();
         logger.error(`Error initiating call for candidate ${candidate.id}:`, error);
@@ -229,8 +317,16 @@ export const initiateCallForCandidate = async (
     }
 };
 
-
-    // Initialize queue processing
-    // setupQueueProcessing();
+export const testQueue = async (blandAIPostCallResponse: IBlandAIPostCallResponse): Promise<Bull.Job> => {
+    try {
+        logger.info('Adding test job to evaluation queue');
+        const testJob = await callEvaluationQueue.add(blandAIPostCallResponse);
+        logger.info('Test job added successfully', { jobId: testJob.id });
+        return testJob;
+    } catch (error) {
+        logger.error('Error testing queue:', error);
+        throw error;
+    }
+};
 
 

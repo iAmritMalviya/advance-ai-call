@@ -6,6 +6,7 @@ import knex from 'knex';
 import { logger } from './utils/logger';
 import knexConfig from "../knexfile";
 import { callingRouter } from './routes/interviewRoutes';
+import { setupQueueProcessing } from './services/BlandAIService';
 
 dotenv.config();
 
@@ -30,6 +31,9 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
         message: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
 });
+
+setupQueueProcessing();
+logger.info('Queue processing initialized');
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
