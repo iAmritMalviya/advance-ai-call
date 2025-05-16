@@ -8,7 +8,7 @@ export interface Candidate {
 }
 
 
-export interface InterviewSession {
+export interface InterviewRound {
     id: number;
     candidate_id: number;
     status: 'scheduled' | 'in_progress' | 'completed' | 'failed';

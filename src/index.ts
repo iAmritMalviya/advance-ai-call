@@ -7,6 +7,7 @@ import { logger } from './utils/logger';
 import knexConfig from "../knexfile";
 import { callingRouter } from './routes/interviewRoutes';
 import { setupQueueProcessing } from './services/BlandAIService';
+import { errorHandler } from './middleware/errorHandler';
 
 dotenv.config();
 
@@ -24,14 +25,10 @@ app.get('/health', (req, res) => {
 
 app.use('/api', callingRouter);
 
-app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
-    logger.error('Unhandled error:', err);
-    res.status(500).json({
-        error: 'Internal server error',
-        message: process.env.NODE_ENV === 'development' ? err.message : undefined
-    });
-});
+// Error handling middleware
+app.use(errorHandler);
 
+// Initialize queue processing
 setupQueueProcessing();
 logger.info('Queue processing initialized');
 
