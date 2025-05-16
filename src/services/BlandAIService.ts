@@ -80,17 +80,16 @@ const callEvaluationQueue = createAiCallEvaluationQueue();
 
 export const setupQueueProcessing = () => {
     callQueue.process(MAX_CONCURRENT_CALLS, async (job) => {
-        const { candidateId, phoneNumber, questions, company, name } = job.data;
+        const  {    
+            candidate,
+            questions} = job.data ;
         try {
-            logger.info(`Processing call for candidate ${candidateId}`, { jobId: job.id });
-            const callResponse = await initiateCall(phoneNumber, { questions, companyName: company, name });
-            logger.info(`Call initiated successfully for candidate ${candidateId}`, { 
-                jobId: job.id,
-                callId: callResponse.call_id 
-            });
+            logger.info(`Processing call for candidate ${candidate.id}`, { jobId: job.id });
+            const callResponse = await initiateCallForCandidate(candidate, questions);
+           
             return callResponse;
         } catch (error) {
-            logger.error(`Call failed for candidate ${candidateId}:`, { 
+            logger.error(`Call failed for candidate ${candidate.id}:`, { 
                 error,
                 jobId: job.id,
                 attempt: job.attemptsMade
@@ -331,10 +330,12 @@ export const postCallEvaluationQueue = async (blandAIPostCallResponse: IBlandAIP
     }
 };
 
-export const callCandidatesQueue = async (blandAIPostCallResponse: IBlandAIPostCallResponse): Promise<Bull.Job> => {
+export const callCandidatesQueue = async (job: {    
+    candidate: Candidate,
+    questions: IQuestion[],}): Promise<Bull.Job> => {
     try {
         logger.info('Adding candidates to queue');
-        const queue = await .add(blandAIPostCallResponse);
+        const queue = await callQueue.add(job);
         logger.info('Test job added successfully', { jobId: queue.id });
         return queue;
     } catch (error) {

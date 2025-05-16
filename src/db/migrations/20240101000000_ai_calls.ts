@@ -17,8 +17,8 @@ export async function up(knex: Knex): Promise<void> {
                 "company": "arc"
               },
               {
-                "name": "Bhargav",
-                "phoneNumber": "+17042227592",
+                "name": "Roy",
+                "phoneNumber": "+918617766165",
                 "company": "arc"
               },
               {

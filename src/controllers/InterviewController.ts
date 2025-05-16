@@ -3,7 +3,7 @@ import { Candidate, InterviewRound, ICallAttempt, IQuestion, IBlandAIPostCallRes
 import { logger } from '../utils/logger';
 import { db } from '..';
 import { questions, blandAIPostCallResponse } from "../dummyData";
-import { initiateCallForCandidate, setupQueueProcessing, postCallEvaluationQueue } from '../services/BlandAIService';
+import { initiateCallForCandidate, setupQueueProcessing, postCallEvaluationQueue, callCandidatesQueue } from '../services/BlandAIService';
 import { findCandidatesByIds } from '../services/DatabaseService';
 import { asyncHandler } from '../middleware/errorHandler';
 import { z } from 'zod';
@@ -29,25 +29,25 @@ export const callCandidates = asyncHandler(async (req: Request, res: Response): 
         throw new Error(`Candidates not found: ${missingIds.join(', ')}`);
     }
 
-    const results = await Promise.allSettled(
-        candidates.map(candidate => initiateCallForCandidate(candidate, questions))
-    );
+    // const results = await Promise.allSettled(
+        candidates.map(candidate => callCandidatesQueue({candidate, questions}))
+    // );
 
-    const failures = results.filter((result): result is PromiseRejectedResult => 
-        result.status === 'rejected'
-    );
+    // const failures = results.filter((result): result is PromiseRejectedResult => 
+    //     result.status === 'rejected'
+    // );
 
-    if (failures.length > 0) {
-        logger.warn('Some interviews failed to schedule', { 
-            failures: failures.map(f => f.reason)
-        });
-    }
+    // if (failures.length > 0) {
+    //     logger.warn('Some interviews failed to schedule', { 
+    //         failures: failures.map(f => f.reason)
+    //     });
+    // }
 
     res.status(200).json({ 
         message: 'Interviews scheduled successfully',
         total: candidates.length,
-        successful: candidates.length - failures.length,
-        failed: failures.length
+        // successful: candidates.length - failures.length,
+        // failed: failures.length
     });
 });
 
