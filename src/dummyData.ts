@@ -13,13 +13,24 @@ export const candidates = [
   //   "phoneNumber": "+17042227592",
   //   "company": "arc"
   // },
-  // {
-  //   "id": 3,
-  //   "name": "Dev",
-  //   "phoneNumber": "+916284164462",
-  //   "company": "Hr Agent io"
-
-  // }
+  {
+    "id": 2,
+    "name": "Dev",
+    "phoneNumber": "+916284164462",
+    "company": "Hr Agent io"
+  },  
+  {
+    "id": 3,
+    "name": "Riya",
+    "phoneNumber": "+917568525429",
+    "company": "Hr Agent io"
+  },  
+  {
+    "id": 4,
+    "name": "Riya",
+    "phoneNumber": "+918617766165",
+    "company": "Hr Agent io"
+  },
 ]
 
 export const questions : IQuestion[]= [

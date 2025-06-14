@@ -155,11 +155,13 @@ export interface IBlandAICallResponseEvaluation {
   
   // in case if needed
   interface IAnswersEvaluation {
+    id: number,
     question: string;
     matchScore: number; // Out of 10
     missedPoints: string[];
     wellAnsweredPoints: string[];
   }
+  
 
 export interface EmotionalAnalysis {
     confidence: 'Low' | 'Moderate' | 'High';

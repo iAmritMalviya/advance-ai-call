@@ -123,13 +123,15 @@ export const initiateCall = async (phoneNumber: string, callScript: ICallScript)
             companyName,
             name
         }),
+        
         record: true,
         webhook_events: ["dynamic_data"],
-        webhook: "https://8bcc-27-0-217-55.ngrok-free.app/api/webhook",
+        webhook: "https://c40b-2409-40d4-106b-a782-2caf-f6b8-279c-bb3c.ngrok-free.app/api/webhook",
         metadata: {
             questions
         }
     };
+    console.log("🚀 ~ initiateCall ~ callData:", callData)
 
     try {
         logger.info('Initiating call', { 
@@ -318,17 +320,46 @@ export const initiateCallForCandidate = async (
     }
 };
 
+
 export const postCallEvaluationQueue = async (blandAIPostCallResponse: IBlandAIPostCallResponse): Promise<Bull.Job> => {
     try {
-        logger.info('Adding test job to evaluation queue');
-        const queue = await callEvaluationQueue.add(blandAIPostCallResponse);
-        logger.info('Test job added successfully', { jobId: queue.id });
-        return queue;
+      // Validate input data
+      if (!blandAIPostCallResponse?.call_id) {
+        throw new Error('Invalid webhook data: missing call_id');
+      }
+  
+      // Add job to queue with retry options
+      const testJob = await callEvaluationQueue.add(
+        blandAIPostCallResponse,
+        {
+          attempts: 3, // Number of retry attempts
+          backoff: {
+            type: 'exponential',
+            delay: 1000 // Initial delay in ms
+          },
+          removeOnComplete: true, // Remove completed jobs
+          removeOnFail: false // Keep failed jobs for debugging
+        }
+      );
+  
+      logger.info('Job added to evaluation queue', { 
+        jobId: testJob.id,
+        callId: blandAIPostCallResponse.call_id,
+        queueSize: await callEvaluationQueue.count(),
+        timestamp: new Date().toISOString()
+      });
+  
+      return testJob;
     } catch (error) {
-        logger.error('Error testing queue:', error);
-        throw error;
+        // if fails, we can add job back to queue with retry options
+      logger.error('Failed to add job to evaluation queue', {
+        error,
+        callId: blandAIPostCallResponse?.call_id,
+        queueSize: await callEvaluationQueue.count()
+      });
+      throw error;
     }
-};
+  };
 
 export const callCandidatesQueue = async (job: {    
     candidate: Candidate,

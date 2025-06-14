@@ -17,50 +17,64 @@ const getInterviewResultsSchema = z.object({
 });
 
 export const callCandidates = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const { candidateIds } = scheduleInterviewSchema.parse(req.body);
+    try {
+        const { candidateIds } = scheduleInterviewSchema.parse(req.body);
     
-    logger.info('Scheduling interviews', { candidateIds });
-
-    const candidates = await findCandidatesByIds(candidateIds);
-
-    if (candidates.length !== candidateIds.length) {
-        const foundIds = candidates.map(c => c.id);
-        const missingIds = candidateIds.filter(id => !foundIds.includes(id));
-        throw new Error(`Candidates not found: ${missingIds.join(', ')}`);
+        logger.info('Scheduling interviews', { candidateIds });
+        // what if candidate id not found?
+        const candidates = await findCandidatesByIds(candidateIds);
+        console.log("🚀 ~ callCandidates ~ candidates:", candidates)
+    
+        if (candidates.length !== candidateIds.length) {
+            const foundIds = candidates.map(c => c.id);
+            const missingIds = candidateIds.filter(id => !foundIds.includes(id));
+            throw new Error(`Candidates not found: ${missingIds.join(', ')}`);
+        }
+    
+        // const results = await Promise.allSettled(
+            candidates.map(candidate => callCandidatesQueue({candidate, questions}))
+        // );
+    
+        // const failures = results.filter((result): result is PromiseRejectedResult => 
+        //     result.status === 'rejected'
+        // );
+    
+        // if (failures.length > 0) {
+        //     logger.warn('Some interviews failed to schedule', { 
+        //         failures: failures.map(f => f.reason)
+        //     });
+        // }
+    
+        res.status(200).json({ 
+            message: 'Interviews scheduled successfully',
+            total: candidates.length,
+            // successful: candidates.length - failures.length,
+            // failed: failures.length
+        });
+    } catch (error: any) {
+        logger.error('Failed to schedule interviews', { error });
+        res.status(500).json({ 
+            message: 'Failed to schedule interviews',
+            error: error.message
+        });
     }
-
-    // const results = await Promise.allSettled(
-        candidates.map(candidate => callCandidatesQueue({candidate, questions}))
-    // );
-
-    // const failures = results.filter((result): result is PromiseRejectedResult => 
-    //     result.status === 'rejected'
-    // );
-
-    // if (failures.length > 0) {
-    //     logger.warn('Some interviews failed to schedule', { 
-    //         failures: failures.map(f => f.reason)
-    //     });
-    // }
-
-    res.status(200).json({ 
-        message: 'Interviews scheduled successfully',
-        total: candidates.length,
-        // successful: candidates.length - failures.length,
-        // failed: failures.length
-    });
 });
 
 export const handleCallWebhook = asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const webhookData: IBlandAIPostCallResponse = req.body;
-    
+    console.log(webhookData);
     logger.info('Received webhook', { 
         // callId: webhookData.event.body.call_id 
         body: req.body
     });
 
-    await postCallEvaluationQueue(webhookData);
-    
+    postCallEvaluationQueue(webhookData).catch(error => {
+        logger.error('Failed to add webhook to queue', {
+          error,
+          callId: webhookData.call_id
+        });
+      });
+  
     res.status(200).json({ message: 'Webhook processed successfully' });
 });
 
