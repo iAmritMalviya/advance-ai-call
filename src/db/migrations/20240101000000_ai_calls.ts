@@ -53,7 +53,11 @@ export async function up(knex: Knex): Promise<void> {
         table.timestamp('updatedAt').defaultTo(knex.fn.now());
     });
 
-
+    await knex.schema.createTable('job_vectors', (table) => {
+      table.increments('id').primary();
+      table.specificType('embedding', 'vector(1536)').notNullable();
+      table.timestamp('createdAt').defaultTo(knex.fn.now());
+    });
 
     await knex.schema.createTable('ai_call_evaluations', (table) => {
         table.uuid('id').primary();
@@ -70,6 +74,8 @@ export async function up(knex: Knex): Promise<void> {
         table.text('notes');
         table.timestamp('createdAt').defaultTo(knex.fn.now());
       });
+
+  
 }
 
 export async function down(knex: Knex): Promise<void> {
@@ -77,6 +83,7 @@ export async function down(knex: Knex): Promise<void> {
     await knex.schema.dropTable('ai_call_evaluations');
     await knex.schema.dropTable('call_attempts');
     await knex.schema.dropTable('candidates');
+    await knex.schema.dropTable('job_vectors');
 } 
 
 

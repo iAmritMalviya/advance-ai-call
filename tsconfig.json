@@ -12,6 +12,6 @@
     "sourceMap": true,
     "allowSyntheticDefaultImports": true
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "src/routes/route.ts"],
   "exclude": ["node_modules", "dist"]
 }

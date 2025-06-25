@@ -5,8 +5,8 @@ import dotenv from 'dotenv';
 import knex from 'knex';
 import { logger } from './utils/logger';
 import knexConfig from "../knexfile";
-import { callingRouter } from './routes/interviewRoutes';
 import { setupQueueProcessing } from './services/BlandAIService';
+import { recruiterRouter } from './routes/route';
 
 dotenv.config();
 
@@ -22,7 +22,7 @@ app.get('/health', (req, res) => {
     res.status(200).json({ status: 'ok', timeStamp: new Date() });
 });
 
-app.use('/api', callingRouter);
+app.use('/api', recruiterRouter);
 
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
     logger.error('Unhandled error:', err);

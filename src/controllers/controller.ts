@@ -1,10 +1,17 @@
 import { Request, Response } from 'express';
-import { Candidate, InterviewSession, ICallAttempt, IQuestion, IBlandAIPostCallResponse } from '../types/common';
+import { Candidate, IBlandAIPostCallResponse } from '../types/common';
 import { logger } from '../utils/logger';
 import { db } from '..';
-import { questions, blandAIPostCallResponse } from "../dummyData";
-import { initiateCallForCandidate, setupQueueProcessing, testQueue } from '../services/BlandAIService';
+import { questions, blandAIPostCallResponse, postedJobs } from "../dummyData";
+import { initiateCallForCandidate, testQueue } from '../services/BlandAIService';
 import { z } from 'zod';
+import { createHash } from 'crypto';
+import { extractResumeData, getEmbedding } from '../services/openAIService';
+import pdfParse from 'pdf-parse';
+import mammoth from 'mammoth';
+import { parse } from 'path';
+import { cosineSimilarity } from '../utils/cosine';
+import { log } from 'console';
 
 const scheduleInterviewSchema = z.object({
     candidateIds: z.array(z.number()).min(1, 'At least one candidate ID is required')
@@ -150,3 +157,111 @@ export const testQueueController = async (req: Request, res: Response): Promise<
         }
     };
 
+// Helper: Extract text from file (PDF/DOCX)
+async function extractText(file: Express.Multer.File): Promise<string> {
+    if (file.mimetype === 'application/pdf') {
+        const data = await pdfParse(file.buffer);
+        return data.text;
+    } else if (file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+        const { value } = await mammoth.extractRawText({ buffer: file.buffer });
+        return value;
+    } else {
+        throw new Error('Unsupported file type');
+    }
+}
+
+// Helper: SHA256 hash
+function sha256(data: string): string {
+    return createHash('sha256').update(data).digest('hex');
+}
+
+// Helper: Upload to S3 (stub)
+async function uploadToS3(file: Express.Multer.File): Promise<string> {
+    // TODO: Implement actual S3 upload
+    return `s3://bucket/${file.originalname}`;
+}
+
+// Helper: Queue stub
+const queue = {
+    add: async (jobName: string, data: any) => ({ id: Math.random().toString(36).slice(2) })
+};
+
+export const parseResume = async(req: Request, res: Response): Promise<void> => {
+    try {
+        const files = req.files as Express.Multer.File[];
+        console.log("🚀 ~ parseResume ~ files:", files)
+        if (!files || files.length === 0) {
+            res.status(400).json({ error: 'No files uploaded' });
+            return;
+        }
+        for (const file of files) {
+            let rawText = '';
+            try {
+                rawText = await extractText(file);
+                const resumeJson = await extractResumeData(rawText);
+            } catch (err) {
+                logger.warn('Failed to extract text from file', { file: file.originalname, error: err });
+                continue;
+            }
+            const fileHash = sha256(rawText);
+            console.log("🚀 ~ parseResume ~ fileHash:", fileHash)
+            const existing = await db('resumes').where({ fileHash: fileHash }).first();
+            if (existing) continue;
+            console.log("🚀 ~ parseResume ~ existing:", existing)
+            const embedding = await getEmbedding(rawText);
+            const parsedResume = await db('resumes').insert({
+                fileName: file.originalname,
+                fileHash: fileHash,
+                embedding: `[${embedding.join(',')}]`,
+                extractedText: rawText
+            }).returning("id");
+            console.log("🚀 ~ parsedResume ~ parsedResume:", parsedResume)
+        }
+        res.status(202).json({  message: "Resumes received, processed, and saved" });
+    } catch (error) {
+        logger.error('Failed to parse resume', error);
+        res.status(500).json({ 
+            error: 'Failed to parse resume',
+            message: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+}
+
+export const createJob = async(req: Request, res: Response): Promise<void> => {
+    try {
+        const job = JSON.stringify(postedJobs[0]);
+        console.log("🚀 ~ createJob ~ job:", job)
+        const embedding = await getEmbedding(job);
+        const jobVector = await db('job_vectors').insert({
+            embedding: `[${embedding.join(',')}]`
+        }).returning('id');
+        res.status(202).json({ jobVector, message: "Resumes received and queued for parsing" });
+    } catch (error) {
+        logger.error('Failed to to parse resume', error);
+        res.status(500).json({ 
+            error: 'Failed to to parse resume',
+            message: error instanceof Error ? error.message : 'Unknown error'
+        }); 
+    }
+}
+
+export const getResumeJobMatching = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const {jobId, resumeId} = req.body;
+        const resume = await db('resumes').select("*").where({id: resumeId}).first();
+        const job = await db('job_vectors').select("*").where({id: jobId}).first();
+        const resumeEmbedding = JSON.parse(resume.embedding)
+        const jobEmbedding = JSON.parse(job.embedding)
+        const semantic = cosineSimilarity(resumeEmbedding, jobEmbedding) * 100;
+        console.log("🚀 ~ getResumeJobMatching ~ semantic:", semantic)
+
+        res.status(202).json({ resume ,job, message: "Resumes received and queued for parsing" });
+        return
+    } catch (error) {
+        logger.error('Failed to to parse resume', error);
+        res.status(500).json({ 
+            error: 'Failed to to parse resume',
+            message: error instanceof Error ? error.message : 'Unknown error'
+        });    
+    }
+}
