@@ -190,11 +190,14 @@ export const parseResume = async(req: Request, res: Response): Promise<void> => 
     try {
         const files = req.files as Express.Multer.File[];
         console.log("🚀 ~ parseResume ~ files:", files)
+
+        //
         if (!files || files.length === 0) {
             res.status(400).json({ error: 'No files uploaded' });
             return;
         }
         for (const file of files) {
+            // one by one store to redis
             let rawText = '';
             try {
                 rawText = await extractText(file);
@@ -223,6 +226,8 @@ export const parseResume = async(req: Request, res: Response): Promise<void> => 
                 embedding: `[${embedding.join(',')}]`,
                 extractedText: rawText
             }).returning("id");
+            // user creation
+            // email trigger for creation of the account
             console.log("🚀 ~ parsedResume ~ parsedResume:", parsedResume)
         }
         res.status(202).json({  message: "Resumes received, processed, and saved" });
