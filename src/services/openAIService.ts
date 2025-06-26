@@ -53,8 +53,26 @@ export async function getEmbedding(text: string): Promise<number[]> {
     return embedding;
   }
 
+  interface IExtractedResumeDetails{
+    name: string,
+    email: string,
+    phone: string,
+    titles: string[],
+    totalExperience: number,
+    state: string,
+    city: string, 
+    description: string
+    location: string,
+    skills: string[],
+    industryKeywords: string[],
+    degrees: string[],
+    currentCompany: string,
+    currentJobTitle: string,
+    linkedin: string,
+    github: string
+  }
 
-  export async function extractResumeData(text: string) {
+  export async function extractResumeData(text: string): Promise<IExtractedResumeDetails> {
     const systemPrompt = `
   You are a highly accurate resume parser.
   
@@ -64,10 +82,15 @@ export async function getEmbedding(text: string): Promise<number[]> {
     "name": string,
     "email": string,
     "phone": string,
+    "titles": string[],
+    "totalExperience": number,
+    "state": string,
+    "city": string, 
+    "description": string
     "location": string,
     "skills": string[],
-    "education": string[],
-    "totalYearsOfExperience": number,
+    "degrees": string[],
+    "industryKeywords": string[]
     "currentCompany": string,
     "currentJobTitle": string,
     "linkedin": string,
@@ -95,7 +118,7 @@ export async function getEmbedding(text: string): Promise<number[]> {
       const json = JSON.parse(responseContent!);
       return json;
     } catch (err) {
-      console.error("Failed to parse JSON", err);
-      return { error: "Invalid JSON returned by model", responseContent };
+      console.error("Failed to parse JSON", err, responseContent);
+      throw new Error("Invalid JSON returned by model");
     }
   }

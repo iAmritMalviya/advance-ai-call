@@ -198,17 +198,25 @@ export const parseResume = async(req: Request, res: Response): Promise<void> => 
             let rawText = '';
             try {
                 rawText = await extractText(file);
-                const resumeJson = await extractResumeData(rawText);
+                console.log("🚀 ~ parseResume ~ rawText:", rawText)
             } catch (err) {
                 logger.warn('Failed to extract text from file', { file: file.originalname, error: err });
                 continue;
             }
+
             const fileHash = sha256(rawText);
             console.log("🚀 ~ parseResume ~ fileHash:", fileHash)
             const existing = await db('resumes').where({ fileHash: fileHash }).first();
-            if (existing) continue;
             console.log("🚀 ~ parseResume ~ existing:", existing)
-            const embedding = await getEmbedding(rawText);
+            if (existing) continue;
+
+            const resumeJson = await extractResumeData(rawText);
+            console.log("🚀 ~ parseResume ~ resumeJson:", resumeJson)
+     
+            const {totalExperience, skills, location, state, city, titles} = resumeJson;
+            const embedding = await getEmbedding(JSON.stringify({
+                totalExperience, skills, titles
+            }));
             const parsedResume = await db('resumes').insert({
                 fileName: file.originalname,
                 fileHash: fileHash,
@@ -226,12 +234,18 @@ export const parseResume = async(req: Request, res: Response): Promise<void> => 
         });
     }
 }
-
+// what are the important fields in the job with resume
+// skills, job title, experience
 export const createJob = async(req: Request, res: Response): Promise<void> => {
     try {
-        const job = JSON.stringify(postedJobs[0]);
-        console.log("🚀 ~ createJob ~ job:", job)
-        const embedding = await getEmbedding(job);
+        const job = postedJobs[0]
+        const {title, experience, skills, location, state, city, type, description} = job
+        const majorParts =  {
+            title,
+            totalExperience: experience,
+            skills,
+        }
+        const embedding = await getEmbedding(JSON.stringify(majorParts));
         const jobVector = await db('job_vectors').insert({
             embedding: `[${embedding.join(',')}]`
         }).returning('id');
@@ -255,7 +269,7 @@ export const getResumeJobMatching = async (req: Request, res: Response): Promise
         const semantic = cosineSimilarity(resumeEmbedding, jobEmbedding) * 100;
         console.log("🚀 ~ getResumeJobMatching ~ semantic:", semantic)
 
-        res.status(202).json({ resume ,job, message: "Resumes received and queued for parsing" });
+        res.status(202).json({ resume ,job,semantic, message: "Resumes received and queued for parsing" });
         return
     } catch (error) {
         logger.error('Failed to to parse resume', error);
